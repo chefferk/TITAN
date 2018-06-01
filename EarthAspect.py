@@ -31,31 +31,48 @@ arcpy.env.overwriteOutput = True
 out_aspect.save("aspect.tif")
 arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect, type(out_aspect)))
 
+# TODO : use commandline params
 temp = "aspect.tif"
 output = "C:\Users\chefferk\Documents\ArcGIS\Default.gdb\ASTGTM2_N17W012_dem_Generate"
 
-
-arcpy.GenerateExcludeArea_management(temp, output, "16_BIT",
-                                     "HISTOGRAM_PERCENTAGE", "", "", "", "",
-                                     "", "", "", "", "0", "50")
-
-#arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(excluded_aspect, type(excluded_aspect)))
-#log("finished.")
+arcpy.GenerateExcludeArea_management(temp, output, "16_BIT", "HISTOGRAM_PERCENTAGE", "", "", "", "", "", "", "", "", "0", "50")
 
 
+# --------- clip the aspect raster to the extent of just the object ---------- #
+# Set local variables
+inRaster = "C:\Users\chefferk\Documents\ArcGIS\Default.gdb\ASTGTM2_N17W012_dem_Generate"
+inMaskData = DesertObject
+
+# Execute ExtractByMask
+outExtractByMask = ExtractByMask(inRaster, inMaskData)
+
+# Save the output
+outExtractByMask.save("extractmask.tif")
 
 
-'''
-# clip the aspect raster to the extent of just the object
-clipAspect = Clip_analysis(ExcludedAspect, DesertObject, clippedAspect)
+# ----------- find the max elevations from the DEM and the objects ----------- #
+# maxElevation = zonalStatisticsAsTable(LocationDEM, field, DesertObject, maxElevation)
 
-# find the max elevations from the DEM and the objects
-maxElevation = zonalStatisticsAsTable(LocationDEM, field, DesertObject, maxElevation)
+# Set local variables
+inZoneData = DesertObject
+zoneField = "ID"
+inValueRaster = in_raster
+outTable = "maxElevation.dbf"
 
-# apply bounding box to the aspect face
-boundingbox = MinimumBoundingGeometry_management( clipAspect, boundingbox, RECTANGLE_BY_WIDTH)
+# Execute ZonalStatisticsAsTable
+max_elevation = ZonalStatisticsAsTable(inZoneData, zoneField, inValueRaster, outTable)
+arcpy.AddMessage("max_elevation: {0} \n{1} \n" .format(max_elevation, type(max_elevation)))
 
+# ------------------- apply bounding box to the aspect face ------------------ #
+# Create variables for the input and output feature classes
+inFeatures = DesertObject
+outFeatureClass = "boundingbox.shp"
 
+# Use MinimumBoundingGeometry function to get a convex hull area for each cluster of trees which are multipoint features
+arcpy.MinimumBoundingGeometry_management(inFeatures, outFeatureClass, "RECTANGLE_BY_WIDTH")
+
+log("finished.")
+log("--------------------------------------------------------------------------------")
 # take the bounding box length and the height from the DEM to find the aspect face.
 
 # list of the field named length in the bounding-box layer
@@ -68,7 +85,7 @@ maxElevation_elevation_list = []
 boundingbox_width_list = []
 
 
-
+'''
 for row in rows:
     # take out file values and put into a list
     boundingbox_length_list.append(row.getValue("length"))
