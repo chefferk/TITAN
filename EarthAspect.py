@@ -24,7 +24,19 @@ log("---------------------------------------------------------------------------
 in_raster = "ASTGTM2_N17W012_dem.tif"
 
 # create the Aspect raster data sheet
-out_aspect = Aspect(in_raster)
+if arcpy.CheckExtension("Spatial") == "Available":
+    log("Checking out Spatial")
+    arcpy.CheckOutExtension("Spatial")
+    try:
+        out_aspect = Aspect(in_raster, "PLANER", "METER")
+    except Exception as e:
+        log("Aspect failed...")
+        out_aspect = Aspect(in_raster)
+else:
+    arcpy.AddError("Unable to get spatial analyst extension")
+    arcpy.AddMessage(arcpy.GetMessages(0))
+    sys.exit(0)
+
 arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect, type(out_aspect)))
 
 arcpy.env.overwriteOutput = True
@@ -69,7 +81,7 @@ inFeatures = DesertObject
 outFeatureClass = "boundingbox.shp"
 
 # Use MinimumBoundingGeometry function to get a convex hull area for each cluster of trees which are multipoint features
-arcpy.MinimumBoundingGeometry_management(inFeatures, outFeatureClass, "RECTANGLE_BY_WIDTH")
+arcpy.MinimumBoundingGeometry_management(inFeatures, outFeatureClass, "RECTANGLE_BY_WIDTH", "NONE", "", True)
 
 log("finished.")
 log("--------------------------------------------------------------------------------")
