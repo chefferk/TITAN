@@ -17,7 +17,7 @@ import numpy as np
 from aspect_helper import *
 
 # DEBUG
-debug = True
+debug = False
 
 # Set environment settings
 env.workspace = arcpy.GetParameterAsText(0)
@@ -39,6 +39,7 @@ if debug:
     arcpy.AddMessage("in_object: {0} \n{1} \n" .format(in_object, type(in_object)))
     arcpy.AddMessage("wind_direction: {0} \n{1} \n" .format(wind_direction, type(wind_direction)))
     log("--------------------------------------------------------------------------------")
+
 
 # ---------------------- create the Aspect raster file ----------------------- #
 # Set local variables
@@ -63,68 +64,106 @@ else:
     arcpy.AddMessage(arcpy.GetMessages(0))
     sys.exit(0)
 
-# Save the output
-out_aspect = "aspect.tif"
-
 # DEBUG
 if debug:
     arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect_obj, type(out_aspect_obj)))
 
+# Save the output
+out_aspect = "aspect.tif"
 out_aspect_obj.save(out_aspect)
 
 # DEBUG
 if debug:
     arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect_obj, type(out_aspect_obj)))
 
+log("Aspect created.")
+
 # TODO: This is still hardcoded for my environment
 # -------------------------- Generate Exclude Area --------------------------- #
 in_DEM_parts = os.path.split(in_DEM)
 in_DEM_file = in_DEM_parts[1][:-4]
-output = "C:\Users\chefferk\Documents\ArcGIS\Default.gdb\\" + in_DEM_file + "_Generate"
+in_DEM_output = "C:\Users\chefferk\Documents\ArcGIS\Default.gdb\\" + in_DEM_file + "_Generate"
 
-log(output)
+# DEBUG
+if debug:
+    arcpy.AddMessage("in_DEM_output: {0} \n{1} \n" .format(in_DEM_output, type(in_DEM_output)))
 
-'''
-arcpy.GenerateExcludeArea_management(out_aspect, output, "16_BIT", "HISTOGRAM_PERCENTAGE", "", "", "", "", "", "", "", "", "0", "50")
+wind_low, wind_high = convert_wind(wind_direction)
 
+
+
+# Set local variables
+in_raster = out_aspect
+out_raster = in_DEM_output
+pixel_type = "16_BIT"
+generate_method = "HISTOGRAM_PERCENTAGE"
+percentage_high = str(wind_low)
+percentage_low = str(wind_high)
+
+log(wind_low)
+log(wind_high)
+
+# Execute Generate Exclude Area
+arcpy.GenerateExcludeArea_management(in_raster, out_raster, pixel_type, generate_method, "", "", "", "", "", "", "", "", percentage_low, percentage_high)
+
+log("Generated Exclude Area.")
 
 # --------- clip the aspect raster to the extent of just the object ---------- #
 # Set local variables
-inRaster = "C:\Users\chefferk\Documents\ArcGIS\Default.gdb\ASTGTM2_N17W012_dem_Generate"
-inMaskData = DesertObject
+in_raster = in_DEM_output
+in_mask_data = in_object
 
-# Execute ExtractByMask
-outExtractByMask = ExtractByMask(inRaster, inMaskData)
+# Execute Extract By Mask
+out_extract_by_mask_obj = ExtractByMask(in_raster, in_mask_data)
+
+# DEBUG
+if debug:
+    arcpy.AddMessage("out_extract_by_mask_obj: {0} \n{1} \n" .format(out_extract_by_mask_obj, type(out_extract_by_mask_obj)))
 
 # Save the output
-outExtractByMask.save("extractmask.tif")
+out_extract_by_mask = "extractMask.tif"
+out_extract_by_mask_obj.save(out_extract_by_mask)
 
+# DEBUG
+if debug:
+    arcpy.AddMessage("out_extract_by_mask_obj: {0} \n{1} \n" .format(out_extract_by_mask_obj, type(out_extract_by_mask_obj)))
+
+log("Extracted mask created.")
 
 # ----------- find the max elevations from the DEM and the objects ----------- #
-# maxElevation = zonalStatisticsAsTable(LocationDEM, field, DesertObject, maxElevation)
-
 # Set local variables
-inZoneData = DesertObject
-zoneField = "ID"
-inValueRaster = in_raster
-outTable = "maxElevation.dbf"
+in_zone_data = in_object
+zone_field = "ID"
+in_value_raster = in_DEM
+out_table = "maxElevation.dbf"
 
 # Execute ZonalStatisticsAsTable
-max_elevation = ZonalStatisticsAsTable(inZoneData, zoneField, inValueRaster, outTable)
-arcpy.AddMessage("max_elevation: {0} \n{1} \n" .format(max_elevation, type(max_elevation)))
+max_elevation = ZonalStatisticsAsTable(in_zone_data, zone_field, in_value_raster, out_table)
+
+# DEBUG:
+if debug:
+    arcpy.AddMessage("max_elevation: {0} \n{1} \n" .format(max_elevation, type(max_elevation)))
+
+log("Max elevation table created.")
 
 # TODO : given measurments are decimal degrees, we want meters
 # ------------------- apply bounding box to the aspect face ------------------ #
-# Create variables for the input and output feature classes
-inFeatures = DesertObject
-outFeatureClass = "boundingbox.shp"
+# Set local variables
+in_features = in_object
+out_feature_class = "boundingbox.shp"
+geometry_type = "RECTANGLE_BY_WIDTH"
+group_option = "NONE"
+group_field = ""
+mbg_fields_option = True
 
 # Use MinimumBoundingGeometry function to get a convex hull area for each cluster of trees which are multipoint features
-arcpy.MinimumBoundingGeometry_management(inFeatures, outFeatureClass, "RECTANGLE_BY_WIDTH", "NONE", "", True)
+arcpy.MinimumBoundingGeometry_management(in_features, out_feature_class, geometry_type, group_option, group_field, mbg_fields_option)
 
-log("finished.")
+log("Bounding box created.")
+
+log("Finished.")
 log("--------------------------------------------------------------------------------")
-
+'''
 # take the bounding box length and the height from the DEM to find the aspect face.
 bb_lengths = []
 bb_widths = []
