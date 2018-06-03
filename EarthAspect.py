@@ -1,53 +1,91 @@
-# This is the python code for the Summer 2018 Titan research
-# This code will take objects in dune fields and find the aspect face of the object and the width. This will all be based on the wind direction.
+# File: EathAspect.py
+# Title: Summer 2018 Titan research
+# Desciption: This script will take objects in dune fields and find the aspect
+#             face of the object and the width. This will all be based on the
+#             wind direction.
+# Authors: Weston Marek - wmarek19@tamu.edu
+#          Keaton Cheffer - chefferk@tamu.edu
+# Requirements: Spatial Analyst Extension
 
+# Import system modules
+import os
+import sys
 import arcpy
-from aspect_helper import *
-import math
-import numpy as np
+from arcpy import env
 from arcpy.sa import *
+import numpy as np
+from aspect_helper import *
 
-# setting the workspace in the toolbox
-arcpy.env.workspace = arcpy.GetParameterAsText(0)
-arcpy.AddMessage("\nWorkspace: {0} \n{1} \n" .format(arcpy.env.workspace, type(arcpy.env.workspace)))
+# DEBUG
+debug = True
 
-LocationDEM = arcpy.GetParameterAsText(1)
-arcpy.AddMessage("LocationDEM {0} \n{1} \n" .format(LocationDEM, type(LocationDEM)))
+# Set environment settings
+env.workspace = arcpy.GetParameterAsText(0)
+env.overwriteOutput = True
 
-DesertObject = arcpy.GetParameterAsText(2)
-arcpy.AddMessage("DesertObject: {0} \n{1} \n" .format(DesertObject, type(DesertObject)))
+# raster DEM
+in_DEM = arcpy.GetParameterAsText(1)
 
+# shape file
+in_object = arcpy.GetParameterAsText(2)
+
+# wind direction in degrees (0-360)
 wind_direction = arcpy.GetParameterAsText(3)
-arcpy.AddMessage("wind_direction: {0} \n{1} \n" .format(wind_direction, type(wind_direction)))
 
-log("--------------------------------------------------------------------------------")
-in_raster = "ASTGTM2_N17W012_dem.tif"
+# DEBUG
+if debug:
+    arcpy.AddMessage("\nWorkspace: {0} \n{1} \n" .format(env.workspace, type(env.workspace)))
+    arcpy.AddMessage("in_DEM: {0} \n{1} \n" .format(in_DEM, type(in_DEM)))
+    arcpy.AddMessage("in_object: {0} \n{1} \n" .format(in_object, type(in_object)))
+    arcpy.AddMessage("wind_direction: {0} \n{1} \n" .format(wind_direction, type(wind_direction)))
+    log("--------------------------------------------------------------------------------")
 
-# create the Aspect raster data sheet
+# ---------------------- create the Aspect raster file ----------------------- #
+# Set local variables
+in_raster = in_DEM
+method = "PLANER"
+z_unit = "METER"
+
+# NOTE: for some reason, Aspect only accepts 3 variables on some machines
 if arcpy.CheckExtension("Spatial") == "Available":
     log("Checking out Spatial")
+    # Check out the ArcGIS Spatial Analyst extension license
     arcpy.CheckOutExtension("Spatial")
     try:
-        out_aspect = Aspect(in_raster, "PLANER", "METER")
+        # Execute Aspect
+        out_aspect_obj = Aspect(in_DEM, "PLANER", "METER")
     except Exception as e:
         log("Aspect failed...")
-        out_aspect = Aspect(in_raster)
+        # Execute Aspect
+        out_aspect_obj = Aspect(in_DEM)
 else:
     arcpy.AddError("Unable to get spatial analyst extension")
     arcpy.AddMessage(arcpy.GetMessages(0))
     sys.exit(0)
 
-arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect, type(out_aspect)))
+# Save the output
+out_aspect = "aspect.tif"
 
-arcpy.env.overwriteOutput = True
-out_aspect.save("aspect.tif")
-arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect, type(out_aspect)))
+# DEBUG
+if debug:
+    arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect_obj, type(out_aspect_obj)))
 
-# TODO : use commandline params
-temp = "aspect.tif"
-output = "C:\Users\chefferk\Documents\ArcGIS\Default.gdb\ASTGTM2_N17W012_dem_Generate"
+out_aspect_obj.save(out_aspect)
 
-arcpy.GenerateExcludeArea_management(temp, output, "16_BIT", "HISTOGRAM_PERCENTAGE", "", "", "", "", "", "", "", "", "0", "50")
+# DEBUG
+if debug:
+    arcpy.AddMessage("out_aspect: {0} \n{1} \n" .format(out_aspect_obj, type(out_aspect_obj)))
+
+# TODO: This is still hardcoded for my environment
+# -------------------------- Generate Exclude Area --------------------------- #
+in_DEM_parts = os.path.split(in_DEM)
+in_DEM_file = in_DEM_parts[1][:-4]
+output = "C:\Users\chefferk\Documents\ArcGIS\Default.gdb\\" + in_DEM_file + "_Generate"
+
+log(output)
+
+'''
+arcpy.GenerateExcludeArea_management(out_aspect, output, "16_BIT", "HISTOGRAM_PERCENTAGE", "", "", "", "", "", "", "", "", "0", "50")
 
 
 # --------- clip the aspect raster to the extent of just the object ---------- #
@@ -75,6 +113,7 @@ outTable = "maxElevation.dbf"
 max_elevation = ZonalStatisticsAsTable(inZoneData, zoneField, inValueRaster, outTable)
 arcpy.AddMessage("max_elevation: {0} \n{1} \n" .format(max_elevation, type(max_elevation)))
 
+# TODO : given measurments are decimal degrees, we want meters
 # ------------------- apply bounding box to the aspect face ------------------ #
 # Create variables for the input and output feature classes
 inFeatures = DesertObject
@@ -85,38 +124,19 @@ arcpy.MinimumBoundingGeometry_management(inFeatures, outFeatureClass, "RECTANGLE
 
 log("finished.")
 log("--------------------------------------------------------------------------------")
+
 # take the bounding box length and the height from the DEM to find the aspect face.
+bb_lengths = []
+bb_widths = []
+max_elevations = []
 
-# list of the field named length in the bounding-box layer
-boundingbox_length_list = []
-
-# list of the field named elevation in the maxElevation layer
-maxElevation_elevation_list = []
-
-# list of the field named width in the bounding-box layer
-boundingbox_width_list = []
-
-
-'''
 for row in rows:
     # take out file values and put into a list
-    boundingbox_length_list.append(row.getValue("length"))
+    bb_lengths = [].append(row.getValue("length"))
 
     # take out file values and put into a list
-    maxElevation_elevation_list.append(row.getvalue("elevation"))
+    max_elevations.append(row.getvalue("elevation"))
 
-aspectFace_L = []
-i = 0
-# multiply the length by the height
-while 1 >= i:
-    aspectFace_L.append(boundingbox_length_list[i] * maxElevation_elevation_list[i])
-    i += 1
-
-# take the aspect face area and multiply it by the width to get the volume of the object.
-Volume_L = []
-i = 0
-# this is the math multiplying the length by the height by the width
-while 1 >= i:
-    Volume_L.append(boundingbox_length_list[i] * maxElevation_elevation_list[i] * boundingbox_width_list[i])
-    i += 1
+aspect_faces = aspect_face(bb_lengths, max_elevations)
+volumes = volume(bb_lengths, bb_widths, max_elevations)
 '''

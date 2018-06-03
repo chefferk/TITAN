@@ -36,3 +36,24 @@ def convert_wind(wind_direction):
     wind_high /= 360
 
     return wind_low, wind_high
+
+
+def aspect_face():
+    # create empty list
+    aspect_faces = []
+
+    # length * height
+    aspect_faces.append(bb_lengths[0] * max_elevations[0])
+
+    return aspect_faces
+
+
+# take the aspect face area and multiply it by the width to get the volume of the object.
+def volume():
+    # create empty list
+    volumes = []
+
+    # volume = max_elevation * width * length
+    volumes.append(bb_lengths[0] * max_elevations[0] * bb_widths[0])
+
+    return volumes
